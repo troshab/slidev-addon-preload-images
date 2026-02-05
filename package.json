@@ -1,0 +1,36 @@
+{
+  "name": "slidev-addon-preload-images",
+  "version": "0.1.0",
+  "description": "Slidev addon for automatic image preloading - smoother slide transitions",
+  "author": "troshab",
+  "license": "MIT",
+  "keywords": [
+    "slidev-addon",
+    "slidev",
+    "preload",
+    "images",
+    "performance",
+    "optimization"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/troshab/slidev-addon-preload-images"
+  },
+  "homepage": "https://github.com/troshab/slidev-addon-preload-images#readme",
+  "bugs": {
+    "url": "https://github.com/troshab/slidev-addon-preload-images/issues"
+  },
+  "engines": {
+    "slidev": ">=0.50.0"
+  },
+  "files": [
+    "setup",
+    "components"
+  ],
+  "slidev": {
+    "name": "preload-images"
+  },
+  "devDependencies": {
+    "@slidev/cli": "^0.50.0"
+  }
+}
