@@ -2,14 +2,15 @@
 
 [![NPM version](https://img.shields.io/npm/v/slidev-addon-preload-images?color=blue)](https://www.npmjs.com/package/slidev-addon-preload-images)
 
-Slidev addon for automatic image preloading — smoother slide transitions with zero configuration.
+Smart automatic image preloading for Slidev presentations — smoother transitions with zero configuration.
 
 ## Features
 
-- **Automatic preloading** — images from upcoming slides are loaded in background
-- **Configurable lookahead** — preload N slides ahead (default: 3)
-- **Smart extraction** — finds images in markdown, HTML, CSS, and frontmatter
-- **Manual control** — `PreloadImages` component for explicit preloading
+- **Scans ALL slides** — finds every image in your presentation on startup
+- **Priority-based loading** — current slide → upcoming → rest in background
+- **Idle-time loading** — uses `requestIdleCallback` for non-blocking preload
+- **Smart extraction** — finds images in markdown, HTML, CSS, Vue bindings, frontmatter
+- **Configurable** — adjust concurrency, priority slides, add custom URLs
 - **Zero config** — works out of the box
 
 ## Installation
@@ -29,11 +30,16 @@ addons:
 ---
 ```
 
-That's it! Images will be automatically preloaded.
+That's it! The addon will:
+
+1. **On startup**: Scan all slides and collect image URLs
+2. **Immediately**: Preload current + next 3 slides (high priority)
+3. **In background**: Preload remaining images during browser idle time
+4. **On navigation**: Ensure upcoming slides are preloaded
 
 ## Configuration (Optional)
 
-Customize behavior in your frontmatter:
+Customize behavior in frontmatter:
 
 ```yaml
 ---
@@ -41,10 +47,11 @@ addons:
   - slidev-addon-preload-images
 
 preloadImages:
-  ahead: 5                    # Preload 5 slides ahead (default: 3)
-  urls:                       # Additional URLs to preload immediately
-    - /hero-image.png
-    - /final-diagram.svg
+  enabled: true           # Enable/disable addon (default: true)
+  priority: 5             # High-priority slides ahead (default: 3)
+  concurrent: 6           # Concurrent downloads (default: 4)
+  urls:                   # Additional URLs to preload
+    - /custom-hero.png
     - https://example.com/logo.png
 ---
 ```
@@ -60,23 +67,59 @@ layout: cover
 
 # My Presentation
 
-<!-- Preload heavy images used in later slides -->
+<!-- Preload specific heavy images -->
 <PreloadImages :urls="[
   '/slides/architecture-diagram.png',
-  '/slides/team-photo.jpg',
-  '/slides/demo-screenshot.png'
+  '/slides/team-photo.jpg'
 ]" />
 ```
 
 ## How It Works
 
-1. **On page load**: Preloads images from the first N+1 slides
-2. **On navigation**: Preloads images from the next N slides
-3. **Image sources detected**:
-   - Markdown: `![alt](url)`
-   - HTML: `<img src="url">`
-   - CSS: `url(...)` in styles
-   - Frontmatter: `image`, `background`, `backgroundImage` properties
+### Image Detection
+
+The addon extracts images from:
+
+| Source | Pattern |
+|--------|---------|
+| Markdown | `![alt](url)` |
+| HTML | `<img src="url">`, `<img :src="url">` |
+| CSS | `background-image: url(...)` |
+| Vue bindings | `:style="{ backgroundImage: 'url(...)' }"` |
+| Frontmatter | `image`, `background`, `backgroundImage`, `src`, `cover` |
+| Layouts | `image`, `image-left`, `image-right`, `intro` with image prop |
+
+### Loading Strategy
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Startup                                                 │
+├─────────────────────────────────────────────────────────┤
+│  1. Scan ALL slides → collect image URLs                 │
+│  2. Preload current + next N slides (high priority)     │
+│  3. Queue remaining → load during idle time              │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  On Navigation                                           │
+├─────────────────────────────────────────────────────────┤
+│  Ensure next N slides are preloaded (if not already)    │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Debugging
+
+In development mode, check preload status in browser console:
+
+```js
+// Get statistics
+window.__preloadImages__.getStats()
+// → { total: 25, loaded: 20, loading: 2, failed: 0, queued: 3 }
+
+// View all detected images by slide
+window.__preloadImages__.allImages
+// → Map { 0 => [...], 1 => [...], ... }
+```
 
 ## Props
 
@@ -90,8 +133,15 @@ layout: cover
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `ahead` | `number` | `3` | Number of slides to preload ahead |
+| `enabled` | `boolean` | `true` | Enable/disable the addon |
+| `priority` | `number` | `3` | Number of slides to preload with high priority |
+| `concurrent` | `number` | `4` | Max concurrent image downloads |
 | `urls` | `string[]` | `[]` | Additional URLs to preload on startup |
+
+## Browser Support
+
+- Uses `requestIdleCallback` for background loading (falls back to `setTimeout`)
+- Works in all modern browsers (Chrome, Firefox, Safari, Edge)
 
 ## License
 
