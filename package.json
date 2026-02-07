@@ -24,8 +24,7 @@
     "slidev": ">=0.50.0"
   },
   "files": [
-    "setup",
-    "components"
+    "setup"
   ],
   "slidev": {
     "name": "preload-images"

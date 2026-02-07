@@ -63,14 +63,6 @@ The addon automatically finds images in:
 | Frontmatter | `image: /hero.png` |
 | Layouts | `image-left`, `image-right`, `intro` |
 
-## Manual Preloading
-
-For explicit control, use the component:
-
-```md
-<PreloadImages :urls="['/heavy.png', '/diagram.svg']" />
-```
-
 ## Debug (Dev Mode)
 
 Open browser console to see preload status:
