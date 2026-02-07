@@ -2,70 +2,43 @@
 
 [![NPM version](https://img.shields.io/npm/v/slidev-addon-preload-images?color=blue)](https://www.npmjs.com/package/slidev-addon-preload-images)
 
-Smart automatic image preloading for Slidev — smoother slide transitions, zero config.
+Preloads images in your Slidev presentation so slides don't flicker on transition.
 
-## How It Works
-
-```
-┌────────────────────────────────────────────────────────┐
-│  1. Startup: immediately preload current + 3 slides   │
-│     (parallel, fast)                                   │
-├────────────────────────────────────────────────────────┤
-│  2. Background: sequentially preload remaining slides │
-│     (one slide at a time, non-blocking)               │
-├────────────────────────────────────────────────────────┤
-│  3. Navigation: ensure upcoming slides are ready      │
-└────────────────────────────────────────────────────────┘
-```
-
-## Installation
+## Setup
 
 ```bash
 npm install slidev-addon-preload-images
 ```
 
-## Usage
-
-Add to your `slides.md`:
-
 ```yaml
+# slides.md
 ---
 addons:
   - slidev-addon-preload-images
 ---
 ```
 
-Done! All images will be automatically preloaded.
+That's it. Images from markdown, HTML, CSS `url()`, and frontmatter (`image`, `background`, etc.) are picked up automatically.
 
-## Configuration (Optional)
+## How it works
+
+1. On load: preloads images from the current slide + next 3 in parallel
+2. Then works through the rest of the deck sequentially
+3. On navigation: checks that upcoming slides are ready
+
+## Config
+
+Optional, in frontmatter:
 
 ```yaml
----
-addons:
-  - slidev-addon-preload-images
-
 preloadImages:
-  enabled: true    # default: true
-  ahead: 5         # slides to preload immediately (default: 3)
----
+  enabled: false  # disable (default: true)
+  ahead: 5        # how many slides to preload on startup (default: 3)
 ```
 
-## What Gets Preloaded
+## Debug
 
-The addon automatically finds images in:
-
-| Source | Example |
-|--------|---------|
-| Markdown | `![alt](image.png)` |
-| HTML | `<img src="photo.jpg">` |
-| Vue bindings | `<img :src="url">` |
-| CSS | `background: url(bg.png)` |
-| Frontmatter | `image: /hero.png` |
-| Layouts | `image-left`, `image-right`, `intro` |
-
-## Debug (Dev Mode)
-
-Open browser console to see preload status:
+In dev mode, check the console:
 
 ```
 [preload-images] Found 25 images in 40 slides
