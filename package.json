@@ -1,6 +1,6 @@
 {
   "name": "slidev-addon-preload-images",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Slidev addon for automatic image preloading - smoother slide transitions",
   "author": "troshab",
   "license": "MIT",
