@@ -1,35 +1,17 @@
 /**
- * slidev-addon-preload-images
+ * Automatic image preloading for Slidev.
  *
- * Smart automatic image preloading for Slidev presentations.
- *
- * Strategy:
- * 1. On startup: immediately preload current + ahead slides (fast, parallel)
- * 2. Then: sequentially preload remaining slides one by one
- * 3. On navigation: ensure upcoming slides are ready
- *
- * Configuration (optional):
- * ---
- * preloadImages:
- *   enabled: true       # Enable/disable (default: true)
- *   ahead: 3            # Slides to preload immediately (default: 3)
- * ---
+ * Scans all slides for images (markdown, HTML, CSS url(), frontmatter)
+ * and preloads them in the background to avoid flickering on transitions.
  */
 
 import { defineAppSetup } from '@slidev/types'
 import { watch } from 'vue'
 
-// ============================================
-// State
-// ============================================
-
 const loaded = new Set<string>()
 const loading = new Set<string>()
 
-// ============================================
-// Image Extraction
-// ============================================
-
+/** Extract image URLs from slide markdown/HTML content */
 function extractImages(content: string): string[] {
   if (!content) return []
 
@@ -37,15 +19,15 @@ function extractImages(content: string): string[] {
   const imgExt = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i
   let m
 
-  // Markdown: ![](url)
+  // ![alt](url)
   const md = /!\[[^\]]*\]\(([^)\s"']+)/g
   while ((m = md.exec(content))) urls.push(m[1])
 
-  // HTML: <img src="url">
+  // <img src="url"> or <img :src="url">
   const html = /<img[^>]+:?src=["']([^"']+)/gi
   while ((m = html.exec(content))) urls.push(m[1])
 
-  // CSS: url(...)
+  // url(...) - only known image extensions
   const css = /url\(["']?([^"')]+)/g
   while ((m = css.exec(content))) {
     if (imgExt.test(m[1])) urls.push(m[1])
@@ -54,14 +36,13 @@ function extractImages(content: string): string[] {
   return urls.filter(u => u && !u.startsWith('data:'))
 }
 
+/** Collect all image URLs from a single slide (content + frontmatter) */
 function getSlideImages(slide: any): string[] {
   const urls: string[] = []
 
-  // Content
   if (slide?.content) urls.push(...extractImages(slide.content))
   if (slide?.source?.raw) urls.push(...extractImages(slide.source.raw))
 
-  // Frontmatter
   const fm = slide?.frontmatter || slide?.meta || {}
   for (const key of ['image', 'background', 'backgroundImage', 'src', 'cover']) {
     if (typeof fm[key] === 'string') urls.push(fm[key])
@@ -69,10 +50,6 @@ function getSlideImages(slide: any): string[] {
 
   return [...new Set(urls)]
 }
-
-// ============================================
-// Preloading
-// ============================================
 
 function preload(url: string): Promise<void> {
   if (loaded.has(url) || loading.has(url)) return Promise.resolve()
@@ -87,27 +64,18 @@ function preload(url: string): Promise<void> {
   })
 }
 
+/** Preload all images from one slide in parallel */
 async function preloadSlide(images: string[]): Promise<void> {
-  // Preload all images from one slide in parallel
   await Promise.all(images.filter(u => !loaded.has(u)).map(preload))
 }
 
-async function preloadSequentially(slideImages: string[][], startIndex: number): Promise<void> {
-  // Preload slides one by one, in order
-  for (let i = startIndex; i < slideImages.length; i++) {
-    const images = slideImages[i]
-    if (images.length > 0) {
-      await preloadSlide(images)
-    }
-
-    // Small delay between slides to not block the main thread
+/** Preload slides one by one with small delays to not block the main thread */
+async function preloadSequentially(slideImages: string[][]): Promise<void> {
+  for (const images of slideImages) {
+    if (images.length > 0) await preloadSlide(images)
     await new Promise(r => setTimeout(r, 50))
   }
 }
-
-// ============================================
-// Main
-// ============================================
 
 export default defineAppSetup(({ router }) => {
   router.isReady().then(async () => {
@@ -120,49 +88,32 @@ export default defineAppSetup(({ router }) => {
     const ahead = config.ahead ?? 3
     const slides: any[] = slidev.nav.slides || []
     const current = (slidev.nav.currentSlideNo ?? 1) - 1
-
-    // Collect images per slide
     const slideImages: string[][] = slides.map(getSlideImages)
 
-    const totalImages = slideImages.flat().length
     if (import.meta.env?.DEV) {
-      console.log(`[preload-images] Found ${totalImages} images in ${slides.length} slides`)
+      console.log(`[preload-images] Found ${slideImages.flat().length} images in ${slides.length} slides`)
     }
 
-    // Phase 1: Immediately preload current + ahead slides (parallel)
+    // Preload current + ahead slides immediately (parallel)
     const priorityEnd = Math.min(current + ahead + 1, slides.length)
-    const prioritySlides = slideImages.slice(current, priorityEnd)
-
-    await Promise.all(prioritySlides.map(preloadSlide))
+    await Promise.all(slideImages.slice(current, priorityEnd).map(preloadSlide))
 
     if (import.meta.env?.DEV) {
       console.log(`[preload-images] Priority slides loaded (${current + 1} to ${priorityEnd})`)
     }
 
-    // Phase 2: Sequentially preload remaining slides
-    // First: slides after priority range
-    preloadSequentially(slideImages, priorityEnd)
-      .then(() => {
-        // Then: slides before current (if user navigates back)
-        if (current > 0) {
-          return preloadSequentially(slideImages.slice(0, current).reverse(), 0)
-        }
-      })
+    // Then the rest: forward first, then backward
+    preloadSequentially(slideImages.slice(priorityEnd)).then(() => {
+      if (current > 0) return preloadSequentially(slideImages.slice(0, current).reverse())
+    })
 
-    // Phase 3: On navigation, ensure upcoming slides are ready
+    // On navigation, ensure upcoming slides are ready
     watch(
       () => slidev.nav.currentSlideNo,
-      async (newSlide: number) => {
-        const idx = newSlide - 1
-        // Preload next few slides
+      async (no: number) => {
         for (let i = 0; i <= ahead; i++) {
-          const slideIdx = idx + i
-          if (slideIdx < slideImages.length) {
-            const images = slideImages[slideIdx].filter(u => !loaded.has(u))
-            if (images.length > 0) {
-              await preloadSlide(images)
-            }
-          }
+          const imgs = slideImages[no - 1 + i]
+          if (imgs?.length) await preloadSlide(imgs.filter(u => !loaded.has(u)))
         }
       }
     )
