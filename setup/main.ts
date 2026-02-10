@@ -85,7 +85,7 @@ export default defineAppSetup(({ router }) => {
     const config = slidev.configs?.preloadImages ?? {}
     if (config.enabled === false) return
 
-    const ahead = config.ahead ?? 3
+    const ahead = config.ahead ?? 0
     const slides: any[] = slidev.nav.slides || []
     const current = (slidev.nav.currentSlideNo ?? 1) - 1
     const slideImages: string[][] = slides.map(getSlideImages)
@@ -94,28 +94,41 @@ export default defineAppSetup(({ router }) => {
       console.log(`[preload-images] Found ${slideImages.flat().length} images in ${slides.length} slides`)
     }
 
-    // Preload current + ahead slides immediately (parallel)
-    const priorityEnd = Math.min(current + ahead + 1, slides.length)
-    await Promise.all(slideImages.slice(current, priorityEnd).map(preloadSlide))
+    if (ahead === 0) {
+      // Preload everything immediately
+      await Promise.all(slideImages.map(preloadSlide))
 
-    if (import.meta.env?.DEV) {
-      console.log(`[preload-images] Priority slides loaded (${current + 1} to ${priorityEnd})`)
-    }
-
-    // Then the rest: forward first, then backward
-    preloadSequentially(slideImages.slice(priorityEnd)).then(() => {
-      if (current > 0) return preloadSequentially(slideImages.slice(0, current).reverse())
-    })
-
-    // On navigation, ensure upcoming slides are ready
-    watch(
-      () => slidev.nav.currentSlideNo,
-      async (no: number) => {
-        for (let i = 0; i <= ahead; i++) {
-          const imgs = slideImages[no - 1 + i]
-          if (imgs?.length) await preloadSlide(imgs.filter(u => !loaded.has(u)))
-        }
+      if (import.meta.env?.DEV) {
+        console.log(`[preload-images] All slides preloaded`)
       }
-    )
+    } else {
+      // Preload bidirectional window [current - ahead, current + ahead]
+      const priorityStart = Math.max(current - ahead, 0)
+      const priorityEnd = Math.min(current + ahead + 1, slides.length)
+      await Promise.all(slideImages.slice(priorityStart, priorityEnd).map(preloadSlide))
+
+      if (import.meta.env?.DEV) {
+        console.log(`[preload-images] Priority slides loaded (${priorityStart + 1} to ${priorityEnd})`)
+      }
+
+      // Then the rest sequentially: forward from window end, then backward from window start
+      preloadSequentially(slideImages.slice(priorityEnd)).then(() => {
+        if (priorityStart > 0) return preloadSequentially(slideImages.slice(0, priorityStart).reverse())
+      })
+
+      // On navigation, preload bidirectional window around new position
+      watch(
+        () => slidev.nav.currentSlideNo,
+        async (no: number) => {
+          const idx = no - 1
+          const from = Math.max(idx - ahead, 0)
+          const to = Math.min(idx + ahead + 1, slideImages.length)
+          for (let i = from; i < to; i++) {
+            const imgs = slideImages[i]
+            if (imgs?.length) await preloadSlide(imgs)
+          }
+        }
+      )
+    }
   })
 })

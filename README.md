@@ -22,9 +22,10 @@ That's it. Images from markdown, HTML, CSS `url()`, and frontmatter (`image`, `b
 
 ## How it works
 
-1. On load: preloads images from the current slide + next 3 in parallel
-2. Then works through the rest of the deck sequentially
-3. On navigation: checks that upcoming slides are ready
+1. On load: preloads all images in the deck in parallel
+2. On navigation: ensures upcoming slides are ready
+
+With `ahead > 0`, preloads a bidirectional window around the current slide first, then the rest sequentially.
 
 ## Config
 
@@ -33,7 +34,7 @@ Optional, in frontmatter:
 ```yaml
 preloadImages:
   enabled: false  # disable (default: true)
-  ahead: 5        # how many slides to preload on startup (default: 3)
+  ahead: 5        # bidirectional window size (default: 0 = all at once)
 ```
 
 ## Debug
@@ -42,7 +43,7 @@ In dev mode, check the console:
 
 ```
 [preload-images] Found 25 images in 40 slides
-[preload-images] Priority slides loaded (1 to 4)
+[preload-images] All slides preloaded
 ```
 
 ## License
