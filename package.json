@@ -1,6 +1,7 @@
 {
   "name": "slidev-addon-preload-images",
-  "version": "0.2.0",
+  "version": "0.2.1",
+  "deprecated": "Image preloading is now built into Slidev core. Remove this addon from your addons list.",
   "description": "Slidev addon for automatic image preloading - smoother slide transitions",
   "author": "troshab",
   "license": "MIT",
